@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DT Token Portal</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- Ethers.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.2/ethers.umd.min.js"></script>
+</head>
+<body class="bg-gray-950 text-white font-sans min-h-screen flex items-center justify-center p-3 sm:p-6">
+
+    <div class="bg-gray-900 w-full max-w-md sm:max-w-lg rounded-2xl shadow-2xl p-4 sm:p-6 border border-gray-800">
+        
+        <!-- Header with Logo and Wallet Connect -->
+        <div class="flex flex-col sm:flex-row justify-between items-center gap-3 mb-6 pb-4 border-b border-gray-800">
+            <div class="flex items-center space-x-3">
+                <!-- LOGO JPG IMAGE -->
+                <img src="images/logo.jpg" alt="Logo" class="w-10 h-10 rounded-full border border-amber-400 object-cover" onerror="this.src='https://via.placeholder.com/40'">
+                <div>
+                    <h1 class="text-lg sm:text-xl font-bold text-amber-400 leading-tight">DT Token Portal</h1>
+                    <p class="text-[11px] text-gray-400">BSC (BEP-20) | Rate: ₹113 / DT</p>
+                </div>
+            </div>
+            <!-- Wallet Connect Button (Trust Wallet / MetaMask) -->
+            <button onclick="connectWallet()" id="walletBtn" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-xs px-4 py-2.5 rounded-xl font-semibold transition cursor-pointer shadow-md">
+                Connect Wallet
+            </button>
+        </div>
+
+        <!-- Tab Switcher -->
+        <div class="flex mb-6 border-b border-gray-800">
+            <button onclick="switchTab('buy')" id="buyTabBtn" class="flex-1 pb-3 text-center text-sm sm:text-base font-semibold text-amber-400 border-b-2 border-amber-400 cursor-pointer">Buy / Receive DT</button>
+            <button onclick="switchTab('transfer')" id="transferTabBtn" class="flex-1 pb-3 text-center text-sm sm:text-base font-semibold text-gray-400 cursor-pointer">Transfer DT</button>
+        </div>
+
+        <!-- BUY / RECEIVE SECTION -->
+        <div id="buySection" class="space-y-4 text-center">
+            <div>
+                <h2 class="text-sm font-semibold text-amber-400 mb-1">Scan QR to Buy / Receive DT</h2>
+                <p class="text-xs text-gray-400 mb-3">Rate: 1 DT = ₹113 (Scan QR in Trust Wallet and pay)</p>
+            </div>
+
+            <!-- JPG QR IMAGE -->
+            <div class="inline-block bg-white p-3 rounded-xl border border-gray-700 shadow-inner">
+                <img src="images/my-qr.jpg" alt="DT Receive QR Code" class="w-40 h-40 object-contain mx-auto" onerror="this.src='https://via.placeholder.com/150?text=Upload+my-qr.jpg'">
+            </div>
+
+            <!-- Calculator for Price -->
+            <div class="bg-gray-950 p-3 rounded-xl border border-gray-800 text-left space-y-2">
+                <div>
+                    <label class="block text-[11px] text-gray-400 mb-1">Kitna DT kharidna hai?</label>
+                    <input type="number" id="buyDtAmount" placeholder="Enter DT amount" oninput="calculatePrice()" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-sm text-white focus:outline-none focus:border-amber-500">
+                </div>
+                <div class="flex justify-between items-center pt-1">
+                    <span class="text-xs text-gray-400">Total Payable:</span>
+                    <span id="totalPriceDisplay" class="text-sm font-bold text-emerald-400">₹0</span>
+                </div>
+            </div>
+
+            <div class="bg-gray-950 p-3 rounded-xl border border-gray-800 text-left">
+                <p class="text-[11px] text-gray-400 mb-1">Your Receiving Address (BEP-20):</p>
+                <p class="text-xs text-amber-300 font-mono break-all" id="walletAddressDisplay">Connect wallet to view address</p>
+            </div>
+
+            <button onclick="proceedBuy()" class="w-full bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold py-3 text-sm sm:text-base rounded-xl transition cursor-pointer shadow-lg">I Have Paid / Deposited</button>
+        </div>
+
+        <!-- TRANSFER SECTION -->
+        <div id="transferSection" class="space-y-4 hidden">
+            <div>
+                <label class="block text-xs sm:text-sm text-gray-400 mb-1">Recipient BEP-20 Address</label>
+                <input type="text" id="recipientAddress" placeholder="0x..." class="w-full bg-gray-950 border border-gray-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-amber-500 font-mono">
+            </div>
+            <div>
+                <label class="block text-xs sm:text-sm text-gray-400 mb-1">Amount to Transfer (DT)</label>
+                <input type="number" id="transferAmount" placeholder="0.00" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-amber-500">
+            </div>
+            <button onclick="sendViaWallet()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-sm sm:text-base font-semibold py-3 rounded-xl transition cursor-pointer shadow-lg">Send DT via Connected Wallet</button>
+        </div>
+    </div>
+
+    <script>
+        let connectedAccount = null;
+        const RATE_PER_DT = 113; // 1 DT = ₹113
+
+        function calculatePrice() {
+            const dtAmount = document.getElementById('buyDtAmount').value;
+            const totalPrice = dtAmount ? dtAmount * RATE_PER_DT : 0;
+            document.getElementById('totalPriceDisplay').innerText = `₹${totalPrice.toLocaleString('en-IN')}`;
+        }
+
+        async function connectWallet() {
+            if (typeof window.ethereum !== 'undefined') {
+                try {
+                    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    connectedAccount = accounts[0];
+                    
+                    const btn = document.getElementById('walletBtn');
+                    btn.innerText = connectedAccount.substring(0, 6) + "..." + connectedAccount.slice(-4);
+                    btn.className = "w-full sm:w-auto bg-emerald-600 text-xs px-4 py-2.5 rounded-xl font-semibold";
+                    
+                    document.getElementById('walletAddressDisplay').innerText = connectedAccount;
+
+                    const provider = new ethers.BrowserProvider(window.ethereum);
+                    const network = await provider.getNetwork();
+                    if (network.chainId !== 56n) {
+                        alert("Please switch your wallet network to Binance Smart Chain (BSC Mainnet)!");
+                    }
+                } catch (error) {
+                    console.error(error);
+                    alert("Wallet connection failed!");
+                }
+            } else {
+                alert("No Web3 Wallet found! Please open this site inside Trust Wallet dApp browser.");
+            }
+        }
+
+        function switchTab(tab) {
+            const buySec = document.getElementById('buySection');
+            const transSec = document.getElementById('transferSection');
+            const buyBtn = document.getElementById('buyTabBtn');
+            const transBtn = document.getElementById('transferTabBtn');
+
+            if (tab === 'buy') {
+                buySec.classList.remove('hidden');
+                transSec.classList.add('hidden');
+                buyBtn.className = "flex-1 pb-3 text-center text-sm sm:text-base font-semibold text-amber-400 border-b-2 border-amber-400 cursor-pointer";
+                transBtn.className = "flex-1 pb-3 text-center text-sm sm:text-base font-semibold text-gray-400 cursor-pointer";
+            } else {
+                buySec.classList.add('hidden');
+                transSec.classList.remove('hidden');
+                transBtn.className = "flex-1 pb-3 text-center text-sm sm:text-base font-semibold text-amber-400 border-b-2 border-amber-400 cursor-pointer";
+                buyBtn.className = "flex-1 pb-3 text-center text-sm sm:text-base font-semibold text-gray-400 cursor-pointer";
+            }
+        }
+
+        async function sendViaWallet() {
+            if (!connectedAccount) {
+                alert("Please connect your wallet first!");
+                await connectWallet();
+                return;
+            }
+
+            const address = document.getElementById('recipientAddress').value;
+            const amount = document.getElementById('transferAmount').value;
+
+            if (!address || !amount) {
+                alert("Please fill in both address and amount.");
+                return;
+            }
+
+            try {
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const signer = await provider.getSigner();
+
+                // Your BEP-20 DT Token Contract Address
+                const dtContractAddress = "0xA4C3bF83EBeaa943FbB52D345518b66B390Da642";
+                const dtContract = new ethers.Contract(dtContractAddress, [
+                    "function transfer(address to, uint256 value) public returns (bool)"
+                ], signer);
+
+                const parsedAmount = ethers.parseUnits(amount.toString(), 18);
+                const tx = await dtContract.transfer(address, parsedAmount);
+                
+                alert("Transaction submitted! Waiting for confirmation...");
+                await tx.wait();
+                alert("Transfer Successful!");
+
+            } catch (error) {
+                console.error(error);
+                alert("Transaction failed: " + (error.reason || error.message));
+            }
+        }
+
+        function proceedBuy() {
+            const dtAmount = document.getElementById('buyDtAddress') || document.getElementById('buyDtAmount').value;
+            if (!dtAmount) {
+                alert("Please enter the amount of DT you want to buy.");
+                return;
+            }
+            const total = dtAmount * RATE_PER_DT;
+            alert(`Please pay ₹${total} via QR. Once payment is confirmed, ${dtAmount} DT will be credited.`);
+        }
+    </script>
+</body>
+</html>
